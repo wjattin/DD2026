@@ -1,0 +1,241 @@
+<div id="results"></div>
+
+<script>
+  /**
+   * Fetch an XML document, filter people by Frost specialties (whole-string contains match),
+   * and render a list with names and images.
+   *
+   * @param {string} url - The XML document URL.
+   * @param {Object} options
+   * @param {string|string[]} options.specialties - Specialty string(s) to match literally (e.g., "jazz | piano").
+   * @param {string|HTMLElement} options.target - CSS selector or DOM element to render into.
+   * @param {Object} [options.images] - Image rendering options.
+   * @param {'small'|'large'|'both'|'none'} [options.images.variant='small'] - Which image(s) to render.
+   * @param {boolean} [options.images.link=false] - Wrap image and name in a link (if you have a profile URL node).
+   * @param {number} [options.images.width] - Optional width attribute on <img>.
+   * @param {number} [options.images.height] - Optional height attribute on <img>.
+   */
+  async function renderFrostBySpecialtyWithImages(
+    url,
+    { specialties, target, images = {} },
+  ) {
+    const {
+      variant = "small", // 'small' | 'large' | 'both' | 'none'
+      link = false, // requires a profile URL field if available
+      width,
+      height,
+    } = images;
+
+    // Resolve target element
+    const targetEl =
+      typeof target === "string" ? document.querySelector(target) : target;
+    if (!targetEl) throw new Error("Target container not found.");
+
+    // Normalize filters to arrays (case-insensitive)
+    const normalizeToArray = (value) =>
+      value == null ? [] : Array.isArray(value) ? value : [value];
+    const specialtyFilters = normalizeToArray(specialties)
+      .map((s) => s.toLowerCase().trim())
+      .filter(Boolean);
+
+    // Fetch XML
+    let xmlText;
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "application/xml,text/xml" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      xmlText = await res.text();
+    } catch (err) {
+      targetEl.innerHTML = `<div class="error">Failed to load XML: ${err.message}</div>`;
+      return;
+    }
+
+    // Parse XML
+    let xmlDoc;
+    try {
+      const parser = new DOMParser();
+      xmlDoc = parser.parseFromString(xmlText, "application/xml");
+      const parseError = xmlDoc.querySelector("parsererror");
+      if (parseError) throw new Error(parseError.textContent || "Invalid XML");
+    } catch (err) {
+      targetEl.innerHTML = `<div class="error">Failed to parse XML: ${err.message}</div>`;
+      return;
+    }
+
+    // Utilities
+    const text = (root, sel) =>
+      (root.querySelector(sel)?.textContent || "").trim();
+    const getTexts = (nodeList) =>
+      Array.from(nodeList)
+        .map((n) => (n.textContent || "").trim())
+        .filter(Boolean);
+
+    // Matching helper (substring, case-insensitive)
+    const matchesAny = (values, filters) => {
+      if (!filters.length) return true; // no filter => include all
+      const hay = values.map((v) => v.toLowerCase());
+      return filters.some((f) => hay.some((h) => h.includes(f)));
+    };
+
+    // Collect people
+    const people = Array.from(xmlDoc.querySelectorAll("people-profile"));
+
+    // Filter (SPECIALTY ONLY; use specialty node as-is — no splitting)
+    const matches = people.filter((person) => {
+      const specialties = getTexts(
+        person.querySelectorAll("frost-specialties > specialty"),
+      );
+      return matchesAny(specialties, specialtyFilters);
+    });
+
+    // Build name (Prefix First Middle Last Suffix)
+    const fullName = (person) => {
+      const parts = [
+        text(person, "prefix"),
+        text(person, "first-name"),
+        text(person, "middle-initial"),
+        text(person, "last-name"),
+        text(person, "suffix"),
+      ]
+        .map((x) => x.replace(/\s+/g, " ").trim())
+        .filter(Boolean);
+      return parts.join(" ");
+    };
+
+    // Image builders
+    const getSmallImage = (person) => text(person, "small-image");
+    const getLargeImage = (person) => text(person, "large-image");
+    // If you adopt an <hbs-image> or profile URL later, wire it here:
+    const getProfileUrl = (person) => ""; // e.g., text(person, 'profile-url')
+
+    const buildImageNode = (person, name) => {
+      if (variant === "none") return null;
+
+      const small = getSmallImage(person);
+      const large = getLargeImage(person);
+
+      // Decide what to render based on variant and availability
+      if (variant === "both" && (small || large)) {
+        const picture = document.createElement("picture");
+
+        // Prefer large as default src; small as fallback
+        if (large) {
+          const sourceLarge = document.createElement("source");
+          sourceLarge.srcset = large;
+          sourceLarge.media = "(min-width: 480px)";
+          picture.appendChild(sourceLarge);
+        }
+        if (small) {
+          const sourceSmall = document.createElement("source");
+          sourceSmall.srcset = small;
+          sourceSmall.media = "(max-width: 479px)";
+          picture.appendChild(sourceSmall);
+        }
+
+        // Fallback <img>
+        const img = document.createElement("img");
+        img.src = large || small || "";
+        img.alt = name;
+        if (width) img.width = width;
+        if (height) img.height = height;
+        img.loading = "lazy";
+        img.decoding = "async";
+        picture.appendChild(img);
+
+        return picture;
+      }
+
+      if (variant === "large" && large) {
+        const img = document.createElement("img");
+        img.src = large;
+        img.alt = name;
+        if (width) img.width = width;
+        if (height) img.height = height;
+        img.loading = "lazy";
+        img.decoding = "async";
+        return img;
+      }
+
+      if (variant === "small" && small) {
+        const img = document.createElement("img");
+        img.src = small;
+        img.alt = name;
+        if (width) img.width = width;
+        if (height) img.height = height;
+        img.loading = "lazy";
+        img.decoding = "async";
+        return img;
+      }
+
+      // No suitable image found
+      return null;
+    };
+
+    // Render
+    targetEl.innerHTML = "";
+    if (!matches.length) {
+      targetEl.innerHTML = `<p>No matching people found.</p>`;
+      return;
+    }
+
+    const ul = document.createElement("ul");
+    ul.setAttribute("aria-label", "Matching people");
+    ul.style.listStyle = "none";
+    ul.style.padding = "0";
+    ul.style.margin = "0";
+
+    matches.forEach((person) => {
+      const name = fullName(person);
+      const li = document.createElement("li");
+      li.style.display = "grid";
+      li.style.gridTemplateColumns = "auto 1fr";
+      li.style.alignItems = "center";
+      li.style.gap = "0.75rem";
+      li.style.margin = "0.5rem 0";
+
+      const imgNode = buildImageNode(person, name);
+
+      // Content (optionally linkable)
+      const contentContainer = document.createElement("div");
+      const titleEl = document.createElement("div");
+      titleEl.textContent = name;
+      titleEl.style.fontWeight = "600";
+
+      // Example: show position title if you want more context
+      const pos = text(person, "position-title");
+      if (pos) {
+        const posEl = document.createElement("div");
+        posEl.textContent = pos;
+        posEl.style.fontSize = "0.9rem";
+        posEl.style.color = "#555";
+        contentContainer.appendChild(titleEl);
+        contentContainer.appendChild(posEl);
+      } else {
+        contentContainer.appendChild(titleEl);
+      }
+
+      // Optional link wrapping (if you have a profile URL in XML)
+      const profileUrl = link ? getProfileUrl(person) : "";
+      if (profileUrl) {
+        const a = document.createElement("a");
+        a.href = profileUrl;
+        a.style.textDecoration = "none";
+        a.style.color = "inherit";
+        const innerWrap = document.createElement("div");
+        innerWrap.style.display = "contents";
+        if (imgNode) li.appendChild(imgNode);
+        innerWrap.appendChild(contentContainer);
+        a.appendChild(innerWrap);
+        li.appendChild(a);
+      } else {
+        if (imgNode) li.appendChild(imgNode);
+        li.appendChild(contentContainer);
+      }
+
+      ul.appendChild(li);
+    });
+
+    targetEl.appendChild(ul);
+  }
+</script>
