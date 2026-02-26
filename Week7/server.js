@@ -1,7 +1,7 @@
 // 1. setup a node app with command: npm init
 // 2. install express with command: npm install express
 // 3. create a file named server.js and add the following code
-
+// 4. start the db with command: brew services start mongodb-community //mac on windows start the mongodb server with command: & "C:\Program Files\MongoDB\Server\8.2\bin\mongod.exe" --dbpath="C:\data\db"
 const express = require("express");
 const app = express();
 const port = 3000;
@@ -17,6 +17,15 @@ const path = require("path");
 
 //setup db connection
 const mongoose = require("mongoose");
+// create schemas
+const destinationSchema = new mongoose.Schema({
+  page: String,
+  name: String,
+  description: String,
+  image: String,
+});
+
+const Destination = mongoose.model("destinations", destinationSchema);
 
 async function main() {
   await mongoose.connect("mongodb://127.0.0.1:27017/travelsite");
@@ -25,14 +34,34 @@ async function main() {
 main().catch((err) => console.log(err));
 
 // Serving static files
+// review middleware in express under week 7 in black board or https://expressjs.com/en/guide/using-middleware.html
 // express.static is a built-in middleware function in Express. It serves static files and is based on serve-static.
 // The function takes a root directory from which to serve static assets. In this case, we are serving files from the "static" directory.
 app.use(express.static(path.join(__dirname, "static")));
-
+// Parse the body of incoming requests with urlencoded payloads and is based on body-parser. This middleware is used to parse the body of incoming requests and make it available under the req.body property. The extended: true option allows for rich objects and arrays to be encoded into the URL-encoded format, which can be useful for complex data structures.
+app.use(express.urlencoded({ extended: true }));
 // data
 
 // generate routes
-app.get("/", (req, res) => {});
+app.get("/", (req, res) => {
+  // Homepage route
+});
+
+// generate routes to populate destinations page
+app.post("/destinations", async (req, res) => {
+  // code to add a new destination to the database
+  const { page, name, description, image } = req.body;
+  console.log(req.body);
+  const newDestination = new Destination({
+    page,
+    name,
+    description,
+    image,
+  });
+  await newDestination.save();
+  //res.redirect("/destinations");
+  res.send("Destination added successfully");
+});
 
 // start the server
 app.listen(port, () => {
