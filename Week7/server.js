@@ -17,6 +17,7 @@ const path = require("path");
 
 //setup db connection
 const mongoose = require("mongoose");
+const { title } = require("process");
 // create schemas
 const destinationSchema = new mongoose.Schema({
   page: String,
@@ -45,6 +46,7 @@ app.use(express.urlencoded({ extended: true }));
 // generate routes
 app.get("/", (req, res) => {
   // Homepage route
+  res.render("home", { title: "Welcome to Travel Site" });
 });
 
 // generate routes to populate destinations page
@@ -61,6 +63,16 @@ app.post("/destinations", async (req, res) => {
   await newDestination.save();
   //res.redirect("/destinations");
   res.send("Destination added successfully");
+});
+// generate routes to display destinations page
+app.get("/destinations", async (req, res) => {
+  // code to fetch destinations from the database and render the destinations page
+  // .lean() is a method in Mongoose that is used to convert a Mongoose document into a plain JavaScript object. When you query the database using Mongoose, it returns a Mongoose document, which has additional methods and properties that are not present in a plain JavaScript object. By calling .lean(), you can get a plain JavaScript object instead of a Mongoose document, which can be more efficient for read-only operations where you don't need the additional functionality provided by Mongoose documents.
+  const destinations = await Destination.find().lean();
+  res.render("destinations", {
+    destinations: destinations,
+    title: "Destinations",
+  });
 });
 
 // start the server
