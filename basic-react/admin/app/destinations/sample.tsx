@@ -1,0 +1,1 @@
+const [locations, setLocations] = useState<{ _id: string; name: string; description: string; image?: string }[]>([]);
