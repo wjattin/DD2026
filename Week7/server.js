@@ -15,6 +15,18 @@ app.set("view engine", "handlebars");
 //app.set("views", path.join(__dirname, "views"));
 // the path module is used to work with file and directory paths
 const path = require("path");
+// setup uploads directory for storing uploaded images
+const multer = require("multer");
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "./static/images/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
+});
+const upload = multer(storage);
 
 //setup db connection
 const mongoose = require("mongoose");
@@ -131,15 +143,16 @@ app.get("/", async (req, res) => {
 });
 
 // generate routes to populate destinations page
-app.post("/destinations", async (req, res) => {
+app.post("/api/destinations", upload.single("image"), async (req, res) => {
   // code to add a new destination to the database
-  const { page, name, description, image } = req.body;
+  const { page, name, description } = req.body;
+  const image = req.file; // Get the path of the uploaded image
   console.log(req.body);
   const newDestination = new Destination({
     page,
     name,
     description,
-    image,
+    image: image.filename ? `/images/${image.filename}` : "/images/default.jpg", // Store the path to the image in the database
   });
   await newDestination.save();
   //res.redirect("/destinations");
@@ -162,7 +175,6 @@ app.get("/destinations/:id", async (req, res) => {
     .populate("activities")
     .lean();
   //const activities = await Activity.find({ destination: id }).lean();
-
   res.render("details", {
     destination: destination,
     title: destination.name,
@@ -220,6 +232,15 @@ app.post("/images", async (req, res) => {
 app.get("/api/destinations", async (req, res) => {
   const destinations = await Destination.find().lean();
   res.json(destinations);
+});
+// Get a specific destination by _id
+app.get("/api/destinations/:id", async (req, res) => {
+  const { id } = req.params;
+  const destination = await Destination.findById(id)
+    .populate("activities")
+    .lean();
+  //const activities = await Activity.find({ destination: id }).lean();
+  res.json(destination);
 });
 
 // start the server
