@@ -1,16 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
-import { redirect, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // form fields: name, page, description,image  
 export default function UpdateDestinationPage() {
     
-    const router = useSearchParams();
+    const searchParams = useSearchParams();
+    const router = useRouter();
 useEffect(() => {
     // Simulate fetching destinations from an API
     const fetchDestination = async () => {
       // Replace this with your actual API call
-      const response = await fetch("http://localhost:3001/api/destinations/"+router.get('id'));
+      const response = await fetch("http://localhost:3001/api/destinations/"+searchParams.get('id'));
 
       const data = await response.json();
       
@@ -73,13 +74,14 @@ useEffect(() => {
                 throw new Error("Failed to add destination");
             } else {
                 // everything worked.. send the user back to destinations page 
+                router.push('/destinations');
                 
             }
         } catch (err) {
             setError((err as Error).message);
         } finally {
             setLoading(false);
-            redirect('/destinations');
+            
            
         }
 
@@ -91,7 +93,7 @@ useEffect(() => {
 
   return (
         <div className="max-w-[600px] w-full">
-            <h1 className="text-3xl font-bold">Edit Destination {router.get('id')}</h1>
+            <h1 className="text-3xl font-bold">Edit Destination {searchParams.get('id')}</h1>
             <form className="mt-4" onSubmit={handleSubmit}>
                 
                 <div className="mb-4">
