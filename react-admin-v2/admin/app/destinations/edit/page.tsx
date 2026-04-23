@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 // form fields: name, page, description,image  
 export default function UpdateDestinationPage() {
+
     
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -66,12 +67,12 @@ useEffect(() => {
 
         try {
             // fetch the data 
-            const response = await fetch("http://localhost:3001/api/destinations", {
-                method: "POST",
+            const response = await fetch("http://localhost:3001/api/destinations/" + searchParams.get('id'), {
+                method: "PUT",
                 body: body
             });
             if (!response.ok) {
-                throw new Error("Failed to add destination");
+                throw new Error("Failed to update destination");
             } else {
                 // everything worked.. send the user back to destinations page 
                 router.push('/destinations');
